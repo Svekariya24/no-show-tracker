@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>No-Show Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f2ee;
+  --surface: #ffffff;
+  --surface2: #f9f8f5;
+  --border: #e2ddd6;
+  --border2: #ccc8bf;
+  --text: #1a1916;
+  --text2: #6b6860;
+  --text3: #9c9a95;
+  --accent: #1a1916;
+  --green-bg: #d4edda; --green-text: #1a5c2a; --green-dot: #2d9e47;
+  --yellow-bg: #fff3cd; --yellow-text: #7a5200; --yellow-dot: #e8960a;
+  --red-bg: #fde8e8; --red-text: #8b1e1e; --red-dot: #d94040;
+  --blue-bg: #e8f0fe; --blue-text: #1a3f8f;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+/* HEADER */
+.header { background: var(--text); color: #fff; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 50; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.logo { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; letter-spacing: -0.3px; color: #fff; }
+.logo span { opacity: 0.4; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+.btn-ghost { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+.btn-ghost:hover { background: rgba(255,255,255,0.18); }
+.btn-primary { background: var(--text); color: #fff; border: 1px solid var(--text); }
+.btn-primary:hover { background: #333; }
+.btn-outline { background: var(--surface); color: var(--text); border: 1px solid var(--border2); }
+.btn-outline:hover { background: var(--surface2); border-color: var(--text); }
+.btn-green { background: var(--green-bg); color: var(--green-text); border: 1px solid #b2dbbf; }
+.btn-green:hover { background: #c3e6cb; }
+.btn-danger { background: var(--red-bg); color: var(--red-text); border: 1px solid #f5b7b7; }
+.btn-danger:hover { background: #fad4d4; }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+.btn svg { width: 14px; height: 14px; }
+
+/* MAIN */
+.main { max-width: 1280px; margin: 0 auto; padding: 24px 28px; }
+
+/* WELCOME / UPLOAD */
+.upload-zone { background: var(--surface); border: 2px dashed var(--border2); border-radius: 16px; padding: 56px 40px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.upload-zone:hover, .upload-zone.drag { border-color: var(--text); background: var(--surface2); }
+.upload-icon { width: 52px; height: 52px; margin: 0 auto 16px; background: var(--surface2); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
+.upload-icon svg { width: 24px; height: 24px; color: var(--text2); }
+.upload-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.upload-sub { color: var(--text2); font-size: 13px; }
+.upload-sub strong { color: var(--text); }
+#fileInput { display: none; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; }
+.stat-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text3); margin-bottom: 6px; }
+.stat-val { font-size: 28px; font-weight: 600; font-family: 'DM Mono', monospace; line-height: 1; }
+.stat-val.green { color: var(--green-text); }
+.stat-val.yellow { color: var(--yellow-text); }
+.stat-val.red { color: var(--red-text); }
+
+/* TOOLBAR */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.search-wrap { position: relative; flex: 1; min-width: 200px; }
+.search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text3); pointer-events: none; }
+.search-wrap input { width: 100%; padding: 8px 10px 8px 32px; border: 1px solid var(--border2); border-radius: 8px; font-size: 13px; background: var(--surface); font-family: 'DM Sans', sans-serif; outline: none; transition: border 0.15s; }
+.search-wrap input:focus { border-color: var(--text); }
+select.filter-sel { padding: 8px 12px; border: 1px solid var(--border2); border-radius: 8px; font-size: 13px; background: var(--surface); font-family: 'DM Sans', sans-serif; outline: none; cursor: pointer; color: var(--text); }
+select.filter-sel:focus { border-color: var(--text); }
+.toolbar-right { display: flex; gap: 8px; margin-left: auto; }
+
+/* TABLE */
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 800px; }
+thead th { background: var(--surface2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+thead th:hover { color: var(--text); }
+thead th .sort-icon { display: inline-block; margin-left: 4px; opacity: 0.4; }
+thead th.sort-asc .sort-icon::after { content: ' ↑'; }
+thead th.sort-desc .sort-icon::after { content: ' ↓'; }
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr.row-green { background: #f0faf2; }
+tbody tr.row-yellow { background: #fffdf0; }
+tbody tr.row-red { background: #fff5f5; }
+tbody tr:hover.row-green { background: #e4f5e8; }
+tbody tr:hover.row-yellow { background: #fdf8e1; }
+tbody tr:hover.row-red { background: #fce8e8; }
+td { padding: 9px 14px; font-size: 13px; }
+td.name-cell { font-weight: 500; }
+.indicator { width: 3px; height: 100%; min-height: 36px; border-radius: 2px; }
+td.ind-cell { padding: 0; width: 4px; }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-green { background: var(--green-bg); color: var(--green-text); }
+.badge-yellow { background: var(--yellow-bg); color: var(--yellow-text); }
+.badge-red { background: var(--red-bg); color: var(--red-text); }
+.badge-blue { background: var(--blue-bg); color: var(--blue-text); }
+.badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.count-pill { display: inline-block; min-width: 24px; text-align: center; padding: 2px 7px; border-radius: 12px; font-size: 12px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.count-1 { background: var(--green-bg); color: var(--green-text); }
+.count-2 { background: var(--yellow-bg); color: var(--yellow-text); }
+.count-3 { background: var(--red-bg); color: var(--red-text); }
+
+/* LEGEND */
+.legend { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.leg-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* MODAL */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+.overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: 14px; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.18); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+.modal-header h2 { font-size: 17px; font-weight: 600; }
+.modal-close { background: none; border: none; cursor: pointer; font-size: 20px; color: var(--text2); line-height: 1; padding: 4px; border-radius: 6px; }
+.modal-close:hover { background: var(--surface2); color: var(--text); }
+.modal-body { padding: 20px 24px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid.full { grid-template-columns: 1fr; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
+.field input, .field select, .field textarea { padding: 9px 12px; border: 1px solid var(--border2); border-radius: 8px; font-size: 13px; font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); outline: none; transition: border 0.15s; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--text); }
+.auto-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--text2); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border); }
+
+/* TOAST */
+.toast { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast-item { background: var(--text); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.2); animation: slideUp 0.25s ease; max-width: 320px; }
+.toast-item.success { background: #1a5c2a; }
+.toast-item.error { background: #8b1e1e; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* EMPTY */
+.empty-state { padding: 48px; text-align: center; color: var(--text3); }
+.empty-state p { font-size: 14px; }
+
+/* FILE INFO BAR */
+.file-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.file-bar-left { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.file-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-dot); }
+.file-name { font-weight: 500; font-family: 'DM Mono', monospace; font-size: 12px; }
+.file-sub { color: var(--text3); font-size: 12px; }
+
+/* CONFIRM DIALOG */
+.confirm-modal { background: var(--surface); border-radius: 14px; width: 100%; max-width: 380px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); }
+.confirm-modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.confirm-modal p { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+.confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
+.sheet-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.sheet-tab { padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text2); transition: all 0.15s; }
+.sheet-tab.active { background: var(--text); color: #fff; border-color: var(--text); }
+.sheet-tab:hover:not(.active) { border-color: var(--text); color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">NO<span>-</span>SHOW <span>//</span> TRACKER</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="document.getElementById('fileInput2').click()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      Load new file
+    </button>
+    <input type="file" id="fileInput2" accept=".xlsx,.xls" style="display:none" onchange="loadFile(this)">
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- UPLOAD SCREEN -->
+  <div id="uploadScreen">
+    <div style="max-width:480px;margin:60px auto;text-align:center;">
+      <h1 style="font-size:26px;font-weight:600;margin-bottom:8px;">No-Show Tracker</h1>
+      <p style="color:var(--text2);margin-bottom:32px;font-size:15px;">Upload your Excel file to view, add, edit, and export records. Works with your existing spreadsheet.</p>
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+        <div class="upload-icon">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+        </div>
+        <div class="upload-title">Drop your Excel file here</div>
+        <p class="upload-sub" style="margin-top:6px;">or click to browse &nbsp;·&nbsp; <strong>.xlsx / .xls</strong></p>
+        <p class="upload-sub" style="margin-top:20px;font-size:12px;">Reads the <strong>Winter Semester</strong> sheet (or first sheet found)</p>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="loadFile(this)">
+      <button class="btn btn-outline" style="margin-top:16px;font-size:13px;" onclick="loadDemo()">Use demo data (no file needed)</button>
+    </div>
+  </div>
+
+  <!-- TRACKER SCREEN -->
+  <div id="trackerScreen" style="display:none">
+
+    <div class="file-bar">
+      <div class="file-bar-left">
+        <div class="file-dot"></div>
+        <span class="file-name" id="fileName">—</span>
+        <span class="file-sub" id="fileSubInfo">loaded</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="saveToExcel()">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Save & Download Excel
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search name, email, advisor…" oninput="renderTable()">
+      </div>
+      <select class="filter-sel" id="advFilter" onchange="renderTable()">
+        <option value="">All advisors</option>
+      </select>
+      <select class="filter-sel" id="countFilter" onchange="renderTable()">
+        <option value="">All records</option>
+        <option value="1">1 no-show (green)</option>
+        <option value="2">2 no-shows (yellow)</option>
+        <option value="3">3+ no-shows (red)</option>
+      </select>
+      <select class="filter-sel" id="modeFilter" onchange="renderTable()">
+        <option value="">All modes</option>
+        <option>VIRTUAL APT</option>
+        <option>IN PERSON</option>
+        <option>Drop-in</option>
+      </select>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" onclick="openAddModal()">
+          <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m-8-8h16"/></svg>
+          Add record
+        </button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:var(--green-dot)"></div>1 no-show (green)</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--yellow-dot)"></div>2 no-shows (yellow)</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--red-dot)"></div>3+ no-shows (red)</div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:4px;padding:0"></th>
+              <th onclick="sortBy('l')" id="th-l">Last name<span class="sort-icon"></span></th>
+              <th onclick="sortBy('f')" id="th-f">First name<span class="sort-icon"></span></th>
+              <th onclick="sortBy('e')" id="th-e">Email<span class="sort-icon"></span></th>
+              <th onclick="sortBy('d')" id="th-d">Date<span class="sort-icon"></span></th>
+              <th>Time</th>
+              <th>Mode</th>
+              <th onclick="sortBy('fu')" id="th-fu">Follow-up<span class="sort-icon"></span></th>
+              <th onclick="sortBy('a')" id="th-a">Advisor<span class="sort-icon"></span></th>
+              <th onclick="sortBy('cnt')" id="th-cnt" style="text-align:center">Count<span class="sort-icon"></span></th>
+              <th style="text-align:center;width:90px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState" style="display:none">
+          <p>No records match your filters.</p>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;text-align:right;font-size:12px;color:var(--text3)" id="rowCount"></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Add record</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label>Last name *</label>
+          <input id="fLast" placeholder="e.g. SMITH" oninput="updateAutoFollowUp()">
+        </div>
+        <div class="field">
+          <label>First name *</label>
+          <input id="fFirst" placeholder="e.g. JOHN" oninput="updateAutoFollowUp()">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input id="fEmail" placeholder="abc@dal.ca" type="email">
+        </div>
+        <div class="field">
+          <label>Appointment Date</label>
+          <input id="fDate" placeholder="20.03.26">
+        </div>
+        <div class="field">
+          <label>Appointment Time</label>
+          <input id="fTime" placeholder="10:00 AM">
+        </div>
+        <div class="field">
+          <label>Mode</label>
+          <select id="fMode">
+            <option>VIRTUAL APT</option>
+            <option>IN PERSON</option>
+            <option>Drop-in</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Advisor</label>
+          <select id="fAdvisor">
+            <option value="">— select —</option>
+            <option>Teresa</option>
+            <option>Zack</option>
+            <option>Qiuling</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Follow-up type</label>
+          <div class="auto-badge" id="autoFollowUp">Will be calculated automatically</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRecord()">Save record</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div class="overlay" id="confirmOverlay">
+  <div class="confirm-modal">
+    <h3>Delete record?</h3>
+    <p>This will permanently remove this record from the tracker. You can re-add it at any time.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-outline" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toastContainer"></div>
+
+<script>
+var rows = [];
+var sortCol = '';
+var sortDir = 1;
+var editIdx = -1;
+var deleteIdx = -1;
+var currentFileName = 'no_show_tracker.xlsx';
+var ADVISORS = ['Teresa', 'Zack', 'Qiuling'];
+
+// ── KEY / COUNT HELPERS ───────────────────────────────────────────────────────
+function rowKey(r) { return (r.l||'').trim().toUpperCase() + '|' + (r.f||'').trim().toUpperCase(); }
+function getCount(r) { var k = rowKey(r); return rows.filter(function(x){ return rowKey(x) === k; }).length; }
+function getFollowUp(r, idx) {
+  var k = rowKey(r), n = 0;
+  for (var i = 0; i <= idx; i++) { if (rowKey(rows[i]) === k) n++; }
+  return n === 1 ? '1st' : n === 2 ? '2nd' : '3rd';
+}
+function colorClass(n) { return n >= 3 ? 'row-red' : n === 2 ? 'row-yellow' : 'row-green'; }
+function badgeCls(n) { return n >= 3 ? 'badge-red' : n === 2 ? 'badge-yellow' : 'badge-green'; }
+function countCls(n) { return n >= 3 ? 'count-3' : n === 2 ? 'count-2' : 'count-1'; }
+
+// ── FILE LOADING ──────────────────────────────────────────────────────────────
+function dragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag'); }
+function dragLeave(e) { document.getElementById('dropZone').classList.remove('drag'); }
+function dropFile(e) {
+  e.preventDefault();
+  dragLeave(e);
+  var f = e.dataTransfer.files[0];
+  if (f) processFile(f);
+}
+function loadFile(input) {
+  var f = input.files[0];
+  if (f) processFile(f);
+  input.value = '';
+}
+function processFile(file) {
+  currentFileName = file.name;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+      // Try Winter Semester first, else first sheet
+      var sname = wb.SheetNames.indexOf('Winter Semester') >= 0 ? 'Winter Semester' : wb.SheetNames[0];
+      var ws = wb.Sheets[sname];
+      var data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      rows = [];
+      for (var i = 1; i < data.length; i++) {
+        var row = data[i];
+        var last = (row[0]||'').toString().trim();
+        var first = (row[1]||'').toString().trim();
+        if (!last && !first) continue;
+        // Format time
+        var rawTime = row[4];
+        var timeStr = '';
+        if (rawTime instanceof Date) {
+          var hh = rawTime.getHours(), mm = rawTime.getMinutes();
+          var ampm = hh >= 12 ? 'PM' : 'AM';
+          hh = hh % 12 || 12;
+          timeStr = hh + ':' + (mm < 10 ? '0' + mm : mm) + ' ' + ampm;
+        } else {
+          timeStr = (rawTime||'').toString().trim();
+        }
+        rows.push({
+          l: last, f: first,
+          e: (row[2]||'').toString().trim(),
+          d: (row[3]||'').toString().trim(),
+          t: timeStr,
+          m: (row[5]||'').toString().trim(),
+          a: (row[7]||'').toString().trim()
+        });
+      }
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSubInfo').textContent = rows.length + ' records loaded from "' + sname + '"';
+      showTracker();
+      toast(rows.length + ' records loaded successfully', 'success');
+    } catch(err) {
+      toast('Could not read file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+// ── DEMO DATA ────────────────────────────────────────────────────────────────
+function loadDemo() {
+  rows = [
+    {l:"ABO SHAKRA",f:"WISAM",e:"os725191@dal.ca",d:"06.01.26",t:"5:30 PM",m:"VIRTUAL APT",a:"Teresa"},
+    {l:"ABATE",f:"MINASE",e:"QV445782@DAL.CA",d:"08.01.26",t:"10:30 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"AINEE",f:"TASNEEM",e:"ts674313@dal.ca",d:"08.01.26",t:"11:30 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"ABO SHAKRA",f:"WISAM",e:"os725191@dal.ca",d:"13.01.26",t:"7:30 PM",m:"VIRTUAL APT",a:"Teresa"},
+    {l:"CHOPRA",f:"HARRY",e:"hr453130@dal.ca",d:"16.01.26",t:"10:00 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"ZEINAB",f:"KASSEM",e:"ks791577@dal.ca",d:"16.01.26",t:"11:00 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"CORDS",f:"MOXXIE",e:"MJ322655@DAL.CA",d:"19.01.26",t:"2:30 PM",m:"VIRTUAL APT",a:"Qiuling"},
+    {l:"PABLA",f:"MANVEER SINGH",e:"mn744934@dal.ca",d:"19.01.26",t:"3:30 PM",m:"VIRTUAL APT",a:"Qiuling"},
+    {l:"DAS",f:"SAURABH",e:"sr850847@dal.ca",d:"10.03.26",t:"4:00 PM",m:"VIRTUAL APT",a:""},
+    {l:"JUSTICE",f:"YEBOAH",e:"AD631617@DAL.CA",d:"13.03.26",t:"10:00 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"DAS",f:"SAURABH",e:"sr850847@dal.ca",d:"09.03.26",t:"4:00 PM",m:"VIRTUAL APT",a:"Qiuling"},
+    {l:"JUSTICE",f:"YEBOAH",e:"AD631617@DAL.CA",d:"09.03.26",t:"3:00 PM",m:"VIRTUAL APT",a:"Qiuling"},
+    {l:"ALIKE",f:"NGBEDE",e:"DB853697@DAL.CA",d:"10.03.26",t:"2:30 PM",m:"VIRTUAL APT",a:""},
+    {l:"ALIKE",f:"NGBEDE",e:"DB853697@DAL.CA",d:"09.03.26",t:"2:00 PM",m:"VIRTUAL APT",a:"Teresa"},
+    {l:"ALIKE",f:"NGBEDE",e:"DB853697@DAL.CA",d:"06.03.26",t:"1:00 PM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"CHAUHAN",f:"ADITYAVERDHAN",e:"ad963939@dal.ca",d:"19.02.26",t:"9:30 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"CHAUHAN",f:"ADITYAVERDHAN",e:"ad963939@dal.ca",d:"17.02.26",t:"6:00 PM",m:"VIRTUAL APT",a:"Teresa"},
+    {l:"ABO SHAKRA",f:"WISAM",e:"os725191@dal.ca",d:"27.01.26",t:"6:00 PM",m:"VIRTUAL APT",a:"Teresa"},
+    {l:"BAHLOUL",f:"YOUSSEF",e:"ys901284@dal.ca",d:"06.03.26",t:"11:30 AM",m:"VIRTUAL APT",a:"Zack"},
+    {l:"BAHLOUL",f:"YOUSSEF",e:"ys901284@dal.ca",d:"06.03.26",t:"9:30 AM",m:"VIRTUAL APT",a:"Zack"}
+  ];
+  currentFileName = 'demo_tracker.xlsx';
+  document.getElementById('fileName').textContent = 'demo_tracker.xlsx';
+  document.getElementById('fileSubInfo').textContent = rows.length + ' demo records loaded';
+  showTracker();
+}
+
+function showTracker() {
+  document.getElementById('uploadScreen').style.display = 'none';
+  document.getElementById('trackerScreen').style.display = 'block';
+  populateAdvisorFilter();
+  renderTable();
+  renderStats();
+}
+
+// ── STATS ────────────────────────────────────────────────────────────────────
+function renderStats() {
+  var total = rows.length;
+  var r1 = rows.filter(function(r){ return getCount(r) === 1; }).length;
+  var r2 = rows.filter(function(r){ return getCount(r) === 2; }).length;
+  var r3 = rows.filter(function(r){ return getCount(r) >= 3; }).length;
+  document.getElementById('statsRow').innerHTML =
+    stat('Total records', total, '') +
+    stat('1× no-show', r1, 'green') +
+    stat('2× no-show', r2, 'yellow') +
+    stat('3+ no-shows', r3, 'red');
+}
+function stat(lbl, val, cls) {
+  return '<div class="stat-card"><div class="stat-label">'+lbl+'</div><div class="stat-val '+cls+'">'+val+'</div></div>';
+}
+
+// ── ADVISOR FILTER ───────────────────────────────────────────────────────────
+function populateAdvisorFilter() {
+  var advs = [...new Set(rows.map(function(r){ return r.a.trim(); }).filter(Boolean))].sort();
+  var sel = document.getElementById('advFilter');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">All advisors</option>';
+  advs.forEach(function(a){ sel.innerHTML += '<option'+(a===cur?' selected':'')+'>'+a+'</option>'; });
+  // Also update advisor dropdown in form
+  var fAdv = document.getElementById('fAdvisor');
+  var allAdvs = [...new Set([...ADVISORS, ...advs])].sort();
+  fAdv.innerHTML = '<option value="">— select —</option>';
+  allAdvs.forEach(function(a){ fAdv.innerHTML += '<option>'+a+'</option>'; });
+}
+
+// ── SORT ─────────────────────────────────────────────────────────────────────
+function sortBy(col) {
+  if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = 1; }
+  ['l','f','e','d','fu','a','cnt'].forEach(function(c){
+    var el = document.getElementById('th-'+c);
+    if (el) { el.className = sortCol === c ? (sortDir === 1 ? 'sort-asc' : 'sort-desc') : ''; }
+  });
+  renderTable();
+}
+
+// ── TABLE ────────────────────────────────────────────────────────────────────
+function renderTable() {
+  var search = document.getElementById('searchInput').value.toLowerCase();
+  var fadv = document.getElementById('advFilter').value;
+  var fcnt = document.getElementById('countFilter').value;
+  var fmode = document.getElementById('modeFilter').value;
+
+  var enriched = rows.map(function(r, i) {
+    return Object.assign({}, r, { _idx: i, _cnt: getCount(r), _fu: getFollowUp(r, i) });
+  });
+
+  var filtered = enriched.filter(function(r) {
+    if (fcnt === '1' && r._cnt !== 1) return false;
+    if (fcnt === '2' && r._cnt !== 2) return false;
+    if (fcnt === '3' && r._cnt < 3) return false;
+    if (fadv && r.a.trim() !== fadv) return false;
+    if (fmode && r.m.trim() !== fmode) return false;
+    if (search) {
+      var q = (r.l+' '+r.f+' '+r.e+' '+r.a).toLowerCase();
+      if (q.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+
+  if (sortCol) {
+    filtered.sort(function(a, b) {
+      var av = sortCol === 'cnt' ? a._cnt : (sortCol === 'fu' ? a._fu : (a[sortCol]||'').toString().toLowerCase());
+      var bv = sortCol === 'cnt' ? b._cnt : (sortCol === 'fu' ? b._fu : (b[sortCol]||'').toString().toLowerCase());
+      return av < bv ? -sortDir : av > bv ? sortDir : 0;
+    });
+  }
+
+  var tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  filtered.forEach(function(r) {
+    var tr = document.createElement('tr');
+    tr.className = colorClass(r._cnt);
+    var dotColor = r._cnt >= 3 ? 'var(--red-dot)' : r._cnt === 2 ? 'var(--yellow-dot)' : 'var(--green-dot)';
+    tr.innerHTML =
+      '<td class="ind-cell"><div style="width:3px;height:36px;background:'+dotColor+';border-radius:2px;margin:auto"></div></td>' +
+      '<td class="name-cell">'+esc(r.l)+'</td>' +
+      '<td>'+esc(r.f)+'</td>' +
+      '<td style="color:var(--text2);font-family:\'DM Mono\',monospace;font-size:12px">'+esc(r.e)+'</td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:12px">'+esc(r.d)+'</td>' +
+      '<td>'+esc(r.t)+'</td>' +
+      '<td><span style="font-size:12px;color:var(--text2)">'+esc(r.m)+'</span></td>' +
+      '<td><span class="badge '+badgeCls(r._cnt)+'">'+r._fu+'</span></td>' +
+      '<td>'+esc(r.a||'—')+'</td>' +
+      '<td style="text-align:center"><span class="count-pill '+countCls(r._cnt)+'">'+r._cnt+'</span></td>' +
+      '<td style="text-align:center">' +
+        '<button class="btn btn-outline btn-sm" onclick="openEditModal('+r._idx+')" style="margin-right:4px">Edit</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="askDelete('+r._idx+')">Del</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  });
+
+  var empty = document.getElementById('emptyState');
+  empty.style.display = filtered.length === 0 ? 'block' : 'none';
+  document.getElementById('rowCount').textContent = 'Showing ' + filtered.length + ' of ' + rows.length + ' records';
+  renderStats();
+}
+
+function esc(s) {
+  return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── MODAL ────────────────────────────────────────────────────────────────────
+function openAddModal() {
+  editIdx = -1;
+  document.getElementById('modalTitle').textContent = 'Add no-show record';
+  ['fLast','fFirst','fEmail','fDate','fTime'].forEach(function(id){ document.getElementById(id).value = ''; });
+  document.getElementById('fMode').value = 'VIRTUAL APT';
+  document.getElementById('fAdvisor').value = '';
+  updateAutoFollowUp();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function openEditModal(idx) {
+  editIdx = idx;
+  var r = rows[idx];
+  document.getElementById('modalTitle').textContent = 'Edit record';
+  document.getElementById('fLast').value = r.l;
+  document.getElementById('fFirst').value = r.f;
+  document.getElementById('fEmail').value = r.e;
+  document.getElementById('fDate').value = r.d;
+  document.getElementById('fTime').value = r.t;
+  document.getElementById('fMode').value = r.m;
+  document.getElementById('fAdvisor').value = r.a;
+  updateAutoFollowUp();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+function updateAutoFollowUp() {
+  var l = document.getElementById('fLast').value.trim().toUpperCase();
+  var f = document.getElementById('fFirst').value.trim().toUpperCase();
+  var el = document.getElementById('autoFollowUp');
+  if (!l || !f) { el.textContent = 'Enter name to calculate'; return; }
+  var k = l + '|' + f;
+  var count = rows.filter(function(r, i){ return rowKey(r) === k && i !== editIdx; }).length;
+  var fu = count === 0 ? '1st' : count === 1 ? '2nd' : '3rd';
+  el.textContent = 'Will be saved as: ' + fu + ' appointment';
+  el.style.color = count === 0 ? 'var(--green-text)' : count === 1 ? 'var(--yellow-text)' : 'var(--red-text)';
+}
+
+function saveRecord() {
+  var l = document.getElementById('fLast').value.trim().toUpperCase();
+  var f = document.getElementById('fFirst').value.trim().toUpperCase();
+  if (!l || !f) { toast('Last name and first name are required', 'error'); return; }
+  var rec = {
+    l: l, f: f,
+    e: document.getElementById('fEmail').value.trim(),
+    d: document.getElementById('fDate').value.trim(),
+    t: document.getElementById('fTime').value.trim(),
+    m: document.getElementById('fMode').value,
+    a: document.getElementById('fAdvisor').value
+  };
+  if (editIdx >= 0) {
+    rows[editIdx] = rec;
+    toast('Record updated', 'success');
+  } else {
+    rows.push(rec);
+    toast('Record added — ' + getFollowUp(rec, rows.length-1) + ' appointment', 'success');
+  }
+  closeModal();
+  populateAdvisorFilter();
+  renderTable();
+}
+
+// ── DELETE ───────────────────────────────────────────────────────────────────
+function askDelete(idx) { deleteIdx = idx; document.getElementById('confirmOverlay').classList.add('open'); }
+function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('open'); deleteIdx = -1; }
+function confirmDelete() {
+  if (deleteIdx >= 0) {
+    rows.splice(deleteIdx, 1);
+    toast('Record deleted', 'success');
+    closeConfirm();
+    renderTable();
+  }
+}
+
+// ── SAVE TO EXCEL ────────────────────────────────────────────────────────────
+function saveToExcel() {
+  var wsData = [['Last name','First name','Email Address','Appointment Date','Appointment Time','Appointment Mode','Follow up type (1st, 2nd, 3rd)','Name of the advisor','No-Show Count']];
+  rows.forEach(function(r, i) {
+    wsData.push([r.l, r.f, r.e, r.d, r.t, r.m, getFollowUp(r, i), r.a, getCount(r)]);
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols'] = [
+    {wch:22},{wch:22},{wch:28},{wch:14},{wch:12},{wch:14},{wch:18},{wch:12},{wch:14}
+  ];
+
+  // Color rows in the sheet by adding cell styles (background)
+  var greenFill = { patternType: 'solid', fgColor: { rgb: 'C6EFCE' } };
+  var yellowFill = { patternType: 'solid', fgColor: { rgb: 'FFEB9C' } };
+  var redFill = { patternType: 'solid', fgColor: { rgb: 'FFC7CE' } };
+  var headerFill = { patternType: 'solid', fgColor: { rgb: '1A1916' } };
+  var headerFont = { bold: true, color: { rgb: 'FFFFFF' }, name: 'Calibri', sz: 11 };
+  var bodyFont = { name: 'Calibri', sz: 10 };
+
+  // Style header row
+  for (var c = 0; c < 9; c++) {
+    var hAddr = XLSX.utils.encode_cell({ r: 0, c: c });
+    if (!ws[hAddr]) ws[hAddr] = {};
+    ws[hAddr].s = { fill: headerFill, font: headerFont, alignment: { horizontal: 'center', wrapText: true } };
+  }
+
+  // Style data rows
+  rows.forEach(function(r, i) {
+    var cnt = getCount(r);
+    var fill = cnt >= 3 ? redFill : cnt === 2 ? yellowFill : greenFill;
+    for (var c = 0; c < 9; c++) {
+      var addr = XLSX.utils.encode_cell({ r: i + 1, c: c });
+      if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+      ws[addr].s = { fill: fill, font: bodyFont, alignment: { horizontal: 'left' } };
+    }
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Winter Semester');
+
+  var fname = currentFileName.replace(/\.(xlsx|xls)$/i, '') + '_updated.xlsx';
+  XLSX.writeFile(wb, fname, { cellStyles: true });
+  toast('Saved as "' + fname + '" — open in Excel or share with your team', 'success');
+}
+
+// ── TOAST ────────────────────────────────────────────────────────────────────
+function toast(msg, type) {
+  var c = document.getElementById('toastContainer');
+  var el = document.createElement('div');
+  el.className = 'toast-item ' + (type||'');
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 3500);
+}
+
+// Close modals on overlay click
+document.getElementById('modalOverlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+document.getElementById('confirmOverlay').addEventListener('click', function(e){ if(e.target===this) closeConfirm(); });
+</script>
+</body>
+</html>
